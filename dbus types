@@ -1,0 +1,22 @@
+INVALID	0 (ASCII NUL)	Not a valid type code, used to terminate signatures
+BYTE	121 (ASCII 'y')	8-bit unsigned integer
+BOOLEAN	98 (ASCII 'b')	Boolean value, 0 is FALSE and 1 is TRUE. Everything else is invalid.
+INT16	110 (ASCII 'n')	16-bit signed integer
+UINT16	113 (ASCII 'q')	16-bit unsigned integer
+INT32	105 (ASCII 'i')	32-bit signed integer
+UINT32	117 (ASCII 'u')	32-bit unsigned integer
+INT64	120 (ASCII 'x')	64-bit signed integer
+UINT64	116 (ASCII 't')	64-bit unsigned integer
+DOUBLE	100 (ASCII 'd')	IEEE 754 double
+STRING	115 (ASCII 's')	UTF-8 string (must be valid UTF-8). Must be nul terminated and contain no other nul bytes.
+OBJECT_PATH	111 (ASCII 'o')	Name of an object instance
+SIGNATURE	103 (ASCII 'g')	A type signature
+ARRAY	97 (ASCII 'a')	Array
+STRUCT	114 (ASCII 'r'), 40 (ASCII '('), 41 (ASCII ')')	Struct; type code 114 'r' is reserved for use in bindings and implementations to represent the general concept of a struct, and must not appear in signatures used on D-Bus.
+VARIANT	118 (ASCII 'v') 	Variant type (the type of the value is part of the value itself)
+DICT_ENTRY	101 (ASCII 'e'), 123 (ASCII '{'), 125 (ASCII '}') 	Entry in a dict or map (array of key-value pairs). Type code 101 'e' is reserved for use in bindings and implementations to represent the general concept of a dict or dict-entry, and must not appear in signatures used on D-Bus.
+UNIX_FD	104 (ASCII 'h')	Unix file descriptor
+(reserved)	109 (ASCII 'm')	Reserved for a 'maybe' type compatible with the one in GVariant, and must not appear in signatures used on D-Bus until specified here
+(reserved)	42 (ASCII '*')	Reserved for use in bindings/implementations to represent any single complete type, and must not appear in signatures used on D-Bus.
+(reserved)	63 (ASCII '?')	Reserved for use in bindings/implementations to represent any basic type, and must not appear in signatures used on D-Bus.
+(reserved)	64 (ASCII '@'), 38 (ASCII '&'), 94 (ASCII '^')	Reserved for internal use by bindings/implementations, and must not appear in signatures used on D-Bus. GVariant uses these type-codes to encode calling conventions.
