@@ -39,3 +39,4 @@ stamp-h1
 .*.sw?
 .gdb_history
 .clang_complete
+httpdbusd
