@@ -69,7 +69,6 @@ http_post_handler (SoupMessage *msg, const gchar *path,
   http_post_send_response (msg);
 }
 
-
 static void
 server_cb (SoupServer        *server,
            SoupMessage       *msg,
@@ -89,11 +88,11 @@ server_cb (SoupServer        *server,
 }
 
 void
-start_http_server (DBusClient *dbus_client)
+start_http_server (DBusClient *dbus_client, guint port)
 {
   SoupServer *server;
 
-  server = soup_server_new (SOUP_SERVER_PORT, 9999,
+  server = soup_server_new (SOUP_SERVER_PORT, port,
                            SOUP_SERVER_SERVER_HEADER, "httpdbusd",
                            NULL);
 

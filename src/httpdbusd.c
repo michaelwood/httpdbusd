@@ -30,7 +30,8 @@ int main (int argc, char **argv)
   GOptionContext *context;
 
   GMainLoop *main_loop;
-  gchar *opt_bus_name, *opt_path, *opt_interface;
+  const gchar *opt_bus_name, *opt_path, *opt_interface;
+  guint opt_port;
   GError *error=NULL;
   DBusClient *dbus_client;
 
@@ -42,6 +43,8 @@ int main (int argc, char **argv)
           "Object path", NULL },
         { "interface", 'i', 0, G_OPTION_ARG_STRING, &opt_interface,
           "Interface to use", NULL},
+        { "http-port", 'p', 0, G_OPTION_ARG_INT, &opt_port,
+          "http port to listen on", NULL},
         { NULL }
     };
 
@@ -56,12 +59,19 @@ int main (int argc, char **argv)
 
 
   dbus_client = dbus_client_new (opt_bus_name, opt_path, opt_interface);
+  if (!dbus_client)
+    goto cleanup;
 
-  start_http_server (dbus_client);
+  if (!opt_port)
+    opt_port = 9999;
+
+  start_http_server (dbus_client, opt_port);
 
   main_loop = g_main_loop_new (NULL, TRUE);
 
   g_main_loop_run (main_loop);
+
+cleanup:
 
   if (context)
     g_option_context_free (context);

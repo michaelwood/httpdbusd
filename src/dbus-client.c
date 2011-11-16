@@ -23,46 +23,111 @@
 #include <gio/gio.h>
 #include "dbus-client.h"
 
-GVariant *
-parse_http_data (DBusClient *dbus_client, const gchar *data)
+static GVariant *
+parse_http_data (gpointer args_hash_table, const gchar *http_data)
 {
-  GString *format_string;
-
-  gchar *items;
+  /* We could have used the query hashtable in the soup server cb but we
+   * don't have that for POST requests, plus this makes memory mgmt easier
+   */
+  GHashTable *parsed_http_data, *arg_info_table;
+  gchar **key_value_pairs;
+  const gchar *itr;
   gint i;
+  GHashTableIter iter;
+  gpointer arg_name, arg_type;
 
-  items = g_strsplit (data, "&", 0);
+  GVariantBuilder *gvbuilder;
 
+  arg_info_table = (GHashTable *)args_hash_table;
 
-/* item[n] playing=false */ /* maybe lets have the args in a hashtable so that we can look up "playing" and see that it requires a "b" boolean */
-  /*
-  g_string_append (format_string, "(");
-  for (i=0; (arg_info_itr = arg_info->in_args[i]); i++)
+  key_value_pairs = g_strsplit (http_data, "&", 0);
+
+  parsed_http_data = g_hash_table_new_full (g_str_hash,
+                                            g_str_equal,
+                                            g_free,
+                                            g_free);
+
+  /* Put the http data into a hash table
+   * This means that it can come to us in any order.
+   */
+  for (i=0; (itr = key_value_pairs[i]); i++)
     {
-      g_string_append (format_string, arg_info->signature);
-    }
-  g_string_append (format_string, ")");
+      gchar **value_key_pair;
 
+      value_key_pair = g_strsplit (itr, "=", 2);
 
-  for (i=0; (items = items[i]); i++)
-    {
-      g_variant_new (
-                     {
-                     }*/
-
-  GVariantBuilder *builder;
-
-  builder = g_variant_builder_new (G_VARIANT_TYPE_ARRAY);
-  for (i = 0; i < 16; i++)
-    {
-      gchar buf[3];
-
-      sprintf (buf, "%d", i);
-      g_variant_builder_add (builder, "{is}", i, buf);
+      g_hash_table_insert (parsed_http_data,
+                           value_key_pair[0],
+                           value_key_pair[1]);
     }
 
-  return g_variant_builder_end (builder);
+  gvbuilder = g_variant_builder_new (G_VARIANT_TYPE_TUPLE);
+/* look at g_variant_parse... */
+/* FIXME: The itr over the hashtable seems to go backwards up the table
+  * would it be crazy to add the args in the reverse order.. */
 
+
+  g_hash_table_iter_init (&iter, arg_info_table);
+  while (g_hash_table_iter_next (&iter, &arg_name, &arg_type)) 
+      {
+        const gchar *http_value;
+        /* lookup the key "this" in /methd?this=that in the http parsed data */
+        http_value = g_hash_table_lookup (parsed_http_data,
+                                          (const gchar *)arg_name);
+
+        g_debug ("arg_name: %s, type: %s http value for this arg_name: %s",
+                (const gchar *) arg_name, (const gchar *) arg_type,
+                http_value);
+
+        /* quick dirty type hacks */
+        if (g_strcmp0 ((const gchar *)arg_type, "b") == 0)
+          {
+            if (g_strcmp0 (http_value, "0") == 0 ||
+                g_strcmp0 (http_value, "false") == 0 ||
+                g_strcmp0 (http_value, "FALSE") == 0)
+              {
+                g_variant_builder_add (gvbuilder, (const gchar*)arg_type,
+                                       FALSE);
+              }
+            else
+              {
+                g_variant_builder_add (gvbuilder, (const gchar*)arg_type,
+                                       TRUE);
+              }
+          }
+        /* oh dear all int types fudged */
+        else if (g_strcmp0 ((const gchar *)arg_type, "n") == 0 ||
+                 g_strcmp0 ((const gchar *)arg_type, "q") == 0 ||
+                 g_strcmp0 ((const gchar *)arg_type, "i") == 0 ||
+                 g_strcmp0 ((const gchar *)arg_type, "u") == 0 ||
+                 g_strcmp0 ((const gchar *)arg_type, "x") == 0 ||
+                 g_strcmp0 ((const gchar *)arg_type, "t") == 0 ||
+                 g_strcmp0 ((const gchar *)arg_type, "h") == 0)
+          {
+            int a;
+            a = strtol (http_value, NULL, 0);
+            g_variant_builder_add (gvbuilder, (const gchar*)arg_type,
+                                   a);
+          }
+        else if (g_strcmp0 ((const gchar *)arg_type, "d") == 0)
+          {
+            gdouble a;
+            a = g_strtod (http_value, NULL);
+            g_variant_builder_add (gvbuilder, (const gchar*)arg_type,
+                                   a);
+          }
+        else if (g_strcmp0 ((const gchar *)arg_type, "s") == 0)
+          {
+            g_variant_builder_add (gvbuilder, (const gchar*)arg_type,
+                                   http_value);
+          }
+      }
+
+
+  g_hash_table_destroy (parsed_http_data);
+
+
+  return g_variant_builder_end (gvbuilder);
 }
 
 void
@@ -70,20 +135,23 @@ dbus_client_call (DBusClient *dbus_client,
                   const gchar *method,
                   const gchar *data)
 {
-  GDBusArgInfo *arg_info;
+  GHashTable *arg_info;
   gboolean found_key;
   GError *error = NULL;
 
   found_key = g_hash_table_lookup_extended (dbus_client->interface,
                                             method,
                                             NULL,
-                                            &arg_info);
+                                            (gpointer)&arg_info);
 
-  /* The method was never inserted into the hash table */
+  /* Return if we don't know about the the method was called */
   if (!found_key)
     return;
-/* No arguments required */
-  if (!arg_info)
+
+  g_debug ("rg_info : %p", arg_info);
+
+  /* No arguments required for this method */
+  if (g_hash_table_size (arg_info) == 0)
     g_dbus_proxy_call_sync (dbus_client->proxy, method, NULL, 0, -1, NULL,
                             &error);
   else
@@ -92,10 +160,9 @@ dbus_client_call (DBusClient *dbus_client,
       arg_data = parse_http_data (arg_info, data);
       g_dbus_proxy_call_sync (dbus_client->proxy,
                               method,
-                              data,
+                              arg_data,
                               0, -1, NULL, &error);
     }
-
 
   if (error)
     {
@@ -134,7 +201,7 @@ dbus_client_proxy_new (DBusClient *dbus_client,
   return proxy;
 }
 
-static void
+static gboolean
 dbus_client_inspect (DBusClient *dbus_client)
 {
   GDBusInterfaceInfo *info;
@@ -159,7 +226,7 @@ dbus_client_inspect (DBusClient *dbus_client)
     {
       g_critical ("Cannot find introspection data %s", error->message);
       g_error_free (error);
-      return;
+      return FALSE;
     }
 
   g_variant_get (result, "(&s)", &xml_introspec_data);
@@ -170,6 +237,7 @@ dbus_client_inspect (DBusClient *dbus_client)
     {
       g_critical ("Cannot parse introspection data %s", error->message);
       g_error_free (error);
+      return FALSE;
     }
 
   /* for now we only care about one interface's info */
@@ -179,20 +247,20 @@ dbus_client_inspect (DBusClient *dbus_client)
   dbus_client->interface = g_hash_table_new_full (g_str_hash,
                                                   g_str_equal,
                                                   g_free,
-                                                  NULL); /* TODO value freer */
+                                                  (GDestroyNotify)
+                                                  g_hash_table_destroy);
 
   g_debug ("interface: %s", info->name);
 
-  GHashTable *arg_info_table;
 
   for (i=0; (method_info = info->methods[i]); i++)
     {
 
+      GHashTable *arg_info_table = NULL;
       g_debug (" - %s", method_info->name);
+      arg_info_table = g_hash_table_new (g_str_hash, g_str_equal);
       if (method_info->in_args)
         {
-          arg_info_table = g_hash_table_new (g_str_hash, g_str_equal);
-
           for (j=0; (arg_info = method_info->in_args[j]); j++)
             {
               g_debug ("    -- %s %s", arg_info->signature, arg_info->name);
@@ -200,11 +268,11 @@ dbus_client_inspect (DBusClient *dbus_client)
                                    arg_info->signature);
             }
         }
-
       g_hash_table_insert (dbus_client->interface,
                            method_info->name,
                            arg_info_table);
     }
+  return TRUE;
 }
 
 
@@ -235,10 +303,14 @@ dbus_client_new (const gchar *service_name,
                                                   object_path,
                                                   interface);
       if (dbus_client->proxy)
-        {
-          dbus_client_inspect (dbus_client);
-        }
-
+        if (!dbus_client_inspect (dbus_client))
+          {
+            /* Can't inspect so bailing out */
+            g_object_unref (dbus_client->connection);
+            g_object_unref (dbus_client->proxy);
+            g_free (dbus_client);
+            return NULL;
+          }
     }
   return dbus_client;
 }

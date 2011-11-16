@@ -37,7 +37,7 @@ struct _DBusClient
 };
 */
 
-void start_http_server (DBusClient *dbus_client);
+void start_http_server (DBusClient *dbus_client, guint port);
 
 G_END_DECLS
 
