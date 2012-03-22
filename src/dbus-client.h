@@ -1,5 +1,5 @@
 /*
- * Mex - a media explorer
+ * httpdbusd - a http dbus bridge daemon
  *
  * Copyright © 2011 Intel Corporation.
  *
