@@ -250,6 +250,12 @@ dbus_client_inspect (DBusClient *dbus_client)
                                                   (GDestroyNotify)
                                                   g_hash_table_destroy);
 
+  if (!info)
+    {
+      g_critical ("Bus name does not exist");
+      exit (-1);
+    }
+
   g_debug ("interface: %s", info->name);
 
 
